@@ -587,9 +587,15 @@ map.graphics.reset <- function(par.vector)
 # - labels is a vector with labels of the original training data set
 # - explicit controls the shape of the connected components
 # - comp controls whether we plot the connected components on the heat map
+# - merge controls whether we merge the starbursts together.
+# - merge.range is the distance where the clusters are merged together.
 
-plot.heat <- function(map,heat,explicit=FALSE,comp=TRUE)
+plot.heat <- function(map,heat,explicit=FALSE,comp=TRUE,merge=FALSE,merge.range)
 {
+  ### keep an unaltered copy of the unified distance matrix,
+  ### required for merging the starburst clusters
+  umat <- heat
+
 	x <- map$xdim
 	y <- map$ydim
 	nobs <- nrow(map$data)
@@ -638,9 +644,13 @@ plot.heat <- function(map,heat,explicit=FALSE,comp=TRUE)
 	### put the connected component lines on the map
 	if (comp)
     {
-		# find the centroid for each neuron on the map
-		centroids <- compute.centroids(map,heat,explicit)
-
+	  if(!merge){
+		  # find the centroid for each neuron on the map
+		  centroids <- compute.centroids(map,heat,explicit)
+	  } else {
+	    # find the unique centroids for the neurons on the map
+	    centroids <- compute.combined.clusters(map,umat,explicit,merge.range)
+	  }
         # connect each neuron to its centroid
 		for(ix in 1:x)
         {
