@@ -71,14 +71,14 @@ require(graphics)
 
 map.build <- function(data,labels=NULL,xdim=10,ydim=5,alpha=.3,train=1000,algorithm="vsom")
 {
-    
+
     # pmatch: som == 1, vsom == 2, experimental == 3, batchsom == 4
     algorithms = c("som","vsom","experimental","batchsom")
-    
+
 	# check if the dims are reasonable
 	if (xdim < 3 || ydim < 3)
 		stop("map.build: map is too small.")
-	
+
     # train the map - returns a list of neurons
     if (pmatch(algorithm,algorithms,nomatch=0) == 1) # som
     {
@@ -95,7 +95,7 @@ map.build <- function(data,labels=NULL,xdim=10,ydim=5,alpha=.3,train=1000,algori
                  topol="rect",
                  radius=c(r,r),
                  rlen=c(1,train))
-        
+
         # the 'som' package does something really annoying with attributes
         # for the neuron matrix, we get rid of that by casting the neurons
         # as a new matrix
@@ -129,7 +129,7 @@ map.build <- function(data,labels=NULL,xdim=10,ydim=5,alpha=.3,train=1000,algori
                               train=train,
                               "random",
                               "bubble")
-        
+
         # extract the neurons
         neurons <- matrix(m$codes,xdim*ydim,ncol(data))
     }
@@ -137,11 +137,11 @@ map.build <- function(data,labels=NULL,xdim=10,ydim=5,alpha=.3,train=1000,algori
     {
         stop("map.build only supports 'som','vsom','experimental',and 'batchsom'")
     }
-    
+
     # make the neuron data a data frame
     neurons <- data.frame(neurons)
     names(neurons) <- names(data)
-    
+
     ### construct the map object
     map <- list(data=data,
                 labels=labels,
@@ -151,23 +151,23 @@ map.build <- function(data,labels=NULL,xdim=10,ydim=5,alpha=.3,train=1000,algori
                 train=train,
                 algorithm=algorithm,
                 neurons=neurons)
-            
+
     ### add the visual field to map
     # for each observation i, visual has an entry for
     # the best matching neuron
-    
+
     visual <- c()
     for (i in 1:nrow(data))
     {
         b <- best.match(map,data[i,])
         visual <- c(visual,b)
     }
-    
+
     map$visual <- visual
-    
+
     ### add the class name
     class(map) <- "map"
-    
+
     return(map)
 }
 
@@ -186,7 +186,7 @@ map.convergence <- function(map,conf.int=.95,k=50,verb=FALSE)
 {
     embed <- map.embed(map,conf.int,verb=FALSE)
     topo <- map.topo(map,k,conf.int,verb=FALSE,interval=FALSE)
-    
+
     if (verb)
         return (list(embed=embed,topo=topo))
     else
@@ -205,13 +205,13 @@ map.convergence <- function(map,conf.int=.95,k=50,verb=FALSE)
 
 # Hint: the embedding index is the variance of the trainig data captured by the map;
 #       maps with convergence of less than 90% are typically not trustworthy.  Of course,
-#       the precise cut-off depends on the noise level in your training data. 
+#       the precise cut-off depends on the noise level in your training data.
 
 map.embed <- function(map,conf.int=.95,verb=FALSE)
 {
 	 if (class(map) != "map")
 		stop("map.embed: first argument is not a map object.")
-	 
+
 	 # map.df is a dataframe that contains the neurons
 	 map.df <- data.frame(map$neurons)
 
@@ -234,7 +234,7 @@ map.embed <- function(map,conf.int=.95,verb=FALSE)
             #cat("Feature",i,"variance:\t",vl$ratio[i],"\t(",vl$conf.int.lo[i],"-",vl$conf.int.hi[i],")\n")
 	    #cat("Feature",i,"mean:\t",ml$diff[i],"\t(",ml$conf.int.lo[i],"-",ml$conf.int.hi[i],")\n")
             if (vl$conf.int.lo[i] <= 1.0 && vl$conf.int.hi[i] >= 1.0 &&
-	        ml$conf.int.lo[i] <= 0.0 && ml$conf.int.hi[i] >= 0.0) 
+	        ml$conf.int.lo[i] <= 0.0 && ml$conf.int.hi[i] >= 0.0)
                var.sum <- var.sum + prob.v[i]
             else
                # not converged - zero out the probability
@@ -267,12 +267,12 @@ map.topo <- function(map,k=50,conf.int=.95,verb=FALSE,interval=TRUE)
 
     # data.df is a matrix that contains the training data
     data.df <- as.matrix(map$data)
-    
+
     # sample map$data
     # TODO: think of something clever here rather than just aborting.
     if (k > nrow(data.df))
         stop("map.topo: sample larger than training data.")
-    
+
     data.sample.ix <- sample(1:nrow(data.df),size=k,replace=FALSE)
 
     # compute the sum topographic accuracy - the accuracy of a single sample
@@ -282,11 +282,11 @@ map.topo <- function(map,k=50,conf.int=.95,verb=FALSE,interval=TRUE)
     {
         acc.v <- c(acc.v,accuracy(map,data.df[data.sample.ix[i],],data.sample.ix[i]))
     }
-    
+
     # compute the confidence interval values using the bootstrap
     if (interval)
         bval <- bootstrap(map,conf.int,data.df,k,acc.v)
-    
+
     # the sum topographic accuracy is scaled by the number of samples - estimated
     # topographic accuracy
     if (verb)
@@ -300,7 +300,7 @@ map.topo <- function(map,k=50,conf.int=.95,verb=FALSE,interval=TRUE)
             list(val=val,lo=bval$lo,hi=bval$hi)
         else
             val
-        
+
     }
 }
 
@@ -309,15 +309,17 @@ map.topo <- function(map,k=50,conf.int=.95,verb=FALSE,interval=TRUE)
 # - map is an object if type 'map'
 # - explicit controls the shape of the connected components
 # - smoothing controls the smoothing level of the umat (NULL,0,>0)
+# - merge.clusters is a switch that controls if the starburst clusters are merged together
+# - merge.range controls the radius <write more>
 
-map.starburst <- function(map,explicit=FALSE,smoothing=2)
+map.starburst <- function(map,explicit=FALSE,smoothing=2,merge.clusters=FALSE,merge.range=.5)
 {
 
 	if (class(map) != "map")
 		stop("map.starburst: first argument is not a map object.")
 
 	umat <- compute.umat(map,smoothing=smoothing)
-	plot.heat(map,umat,explicit=explicit,comp=TRUE)
+	plot.heat(map,umat,explicit=explicit,comp=TRUE,merge=merge.clusters,merge.range=merge.range)
 }
 
 
@@ -338,7 +340,7 @@ map.projection <- function(map)
     labels.v <- map$labels
     x.v <- c()
     y.v <- c()
-    
+
     for (i in 1:nrow(labels.v))
     {
         ix <- map$visual[i]
@@ -349,11 +351,11 @@ map.projection <- function(map)
 
     x.v <- data.frame(x.v)
     y.v <- data.frame(y.v)
-    
+
     names(labels.v) <- "labels"
 	names(x.v) <- "x"
 	names(y.v) <- "y"
-	
+
 	data.frame(labels.v,x.v,y.v)
 }
 
@@ -390,25 +392,25 @@ map.significance <- function(map,graphics=TRUE,feature.labels=TRUE)
 	# plot the significance
 	if (graphics)
     {
-		par.v <- map.graphics.set()	
+		par.v <- map.graphics.set()
 
 		y <- max(prob.v)
 		plot.new()
 		plot.window(xlim=c(1,nfeatures),ylim=c(0,y))
 		box()
-		
+
 		title(xlab="Features",ylab="Significance")
-		
+
 		xticks <- seq(1,nfeatures,1)
 		yticks <- seq(0,y,y/4)
 		if (feature.labels)
 			xlabels <- names(data.df)
-		else 
+		else
 			xlabels <- seq(1,nfeatures,1)
 		ylabels <- formatC(seq(0,y,y/4),digits=2)
 		axis(1,at=xticks,labels=xlabels)
 		axis(2,at=yticks,labels=ylabels)
-		
+
 		points(1:nfeatures,prob.v,type="h")
 
 		map.graphics.reset(par.v)
@@ -463,21 +465,21 @@ bootstrap <- function(map,conf.int,data.df,k,sample.acc.v)
 {
     ix <- as.integer(100 - conf.int*100)
     bn <- 200
-    
+
     bootstrap.acc.v <- c(sum(sample.acc.v)/k)
-    
+
     for (i in 2:bn)
     {
         bs.v <- sample(1:k,size=k,replace=TRUE)
         a <- sum(sample.acc.v[bs.v])/k
         bootstrap.acc.v <- c(bootstrap.acc.v,a)
     }
-    
+
     bootstrap.acc.sort.v <- sort(bootstrap.acc.v)
-    
+
     lo.val <- bootstrap.acc.sort.v[ix]
     hi.val <- bootstrap.acc.sort.v[bn-ix]
-    
+
     list(lo=lo.val,hi=hi.val)
 }
 
@@ -492,7 +494,7 @@ best.match <- function(map,obs,full=FALSE)
     s <- rowSums(squ)
     d <- sqrt(s)
     o <- order(d)
-    
+
     if (full)
         o
     else
@@ -510,7 +512,7 @@ accuracy <- function(map,sample,data.ix)
     o <- best.match(map,sample,full=TRUE)
     best.ix <- o[1]
     second.best.ix <- o[2]
-    
+
     # sanity check
     coord <- coordinate(map,best.ix)
     coord.x <- coord[1]
@@ -520,12 +522,12 @@ accuracy <- function(map,sample,data.ix)
     coord <- coordinate(map,map.ix)
     map.x <- coord[1]
     map.y <- coord[2]
- 
+
     if (coord.x != map.x || coord.y != map.y || best.ix != map.ix){
         cat("best.ix: ",best.ix," map.rix: ",map.ix,"\n")
         stop("accuracy: problems with coordinates")
     }
-    
+
     # determine if the best and second best are neighbors on the map
     best.xy <- coordinate(map,best.ix)
     second.best.xy <- coordinate(map,second.best.ix)
@@ -533,7 +535,7 @@ accuracy <- function(map,sample,data.ix)
     diff.map.sq <- diff.map * diff.map
     sum.map <- sum(diff.map.sq)
     dist.map <- sqrt(sum.map)
-    
+
     # it is a neighbor if the distance on the map
     # between the bmu and 2bmu is less than 2
     if (dist.map < 2)
@@ -560,7 +562,7 @@ rowix <- function(map,x,y)
 }
 
 # map.graphics.set -- set the graphics environment for our map utilities
-#                     the return value is the original graphics param vector 
+#                     the return value is the original graphics param vector
 
 map.graphics.set <- function()
 {
@@ -598,7 +600,7 @@ plot.heat <- function(map,heat,explicit=FALSE,comp=TRUE)
     {
         stop("plot.heat: map dimensions too small")
     }
-    
+
     ### bin the heat values into 100 bins used for the 100 heat colors
     heat.v <- as.vector(heat)
     heat.v <- cut(heat.v,breaks=100,labels=FALSE)
@@ -610,9 +612,9 @@ plot.heat <- function(map,heat,explicit=FALSE,comp=TRUE)
 	plot.new()
 	plot.window(xlim=c(0,x),ylim=c(0,y))
 	box()
-	
+
 	title(xlab="x",ylab="y")
-	
+
 	xticks <- seq(0.5,x-0.5,1)
 	yticks <- seq(0.5,y-0.5,1)
 	xlabels <- seq(1,x,1)
@@ -621,8 +623,8 @@ plot.heat <- function(map,heat,explicit=FALSE,comp=TRUE)
 	axis(3,at=xticks,labels=xlabels)
 	axis(2,at=yticks,labels=ylabels)
 	axis(4,at=yticks,labels=ylabels)
-		
-	
+
+
     ### plot the neurons as heat squares on the map
     # TODO: vectorize this - rect can operate on vectors of coordinates and values
 	for (ix in 1:x)
@@ -632,7 +634,7 @@ plot.heat <- function(map,heat,explicit=FALSE,comp=TRUE)
 			rect(ix-1,iy-1,ix,iy,col=colors[100 - heat[ix,iy] + 1],border=NA)
 		}
 	}
-	
+
 	### put the connected component lines on the map
 	if (comp)
     {
@@ -661,13 +663,13 @@ plot.heat <- function(map,heat,explicit=FALSE,comp=TRUE)
             c <- coordinate(map,nix)
             ix <- c[1]
             iy <- c[2]
-            
+
             count[ix,iy] <- count[ix,iy]+1
         }
-        
+
         #count.df <- data.frame(count)
         #print(count.df)
-        
+
         for(i in 1:nobs)
         {
             c <- coordinate(map,map$visual[i])
@@ -706,7 +708,7 @@ compute.centroids <- function(map,heat,explicit=FALSE)
 	centroid.x <- array(data=-1,dim=c(xdim,ydim))
 	centroid.y <- array(data=-1,dim=c(xdim,ydim))
 	max.val <- max(heat)
-	
+
     ### recursive function to find the centroid of a point on the map
 	compute.centroid <- function(ix,iy)
     {
@@ -725,11 +727,11 @@ compute.centroids <- function(map,heat,explicit=FALSE)
 		#
 		# search the neighborhood; three different cases: inner element, corner element, side element
         # TODO: there has to be a better way!
-        
+
 		min.val <- heat[ix,iy]
 		min.x <- ix
 		min.y <- iy
-		
+
 		# (ix,iy) is an inner map element
 		if (ix > 1 && ix < xdim && iy > 1 && iy < ydim)
         {
@@ -780,9 +782,9 @@ compute.centroids <- function(map,heat,explicit=FALSE)
 				min.val <- heat[ix-1,iy]
 				min.x <- ix-1
 				min.y <- iy
-			}			
-		} 
-		
+			}
+		}
+
 		# (ix,iy) is bottom left corner
 		else if (ix == 1 && iy == 1)
         {
@@ -826,8 +828,8 @@ compute.centroids <- function(map,heat,explicit=FALSE)
 				min.val <- heat[ix-1,iy]
 				min.x <- ix-1
 				min.y <- iy
-			}			
-		} 
+			}
+		}
 
 		# (ix,iy) is top right corner
 		else if (ix == xdim && iy == ydim)
@@ -849,7 +851,7 @@ compute.centroids <- function(map,heat,explicit=FALSE)
 				min.val <- heat[ix-1,iy]
 				min.x <- ix-1
 				min.y <- iy
-			}			
+			}
 		}
 
 		# (ix,iy) is top left corner
@@ -872,9 +874,9 @@ compute.centroids <- function(map,heat,explicit=FALSE)
 				min.val <- heat[ix+1,iy]
 				min.x <- ix+1
 				min.y <- iy
-			}			
+			}
 		}
-		
+
 		# (ix,iy) is a left side element
 		else if (ix == 1  && iy > 1 && iy < ydim)
         {
@@ -909,7 +911,7 @@ compute.centroids <- function(map,heat,explicit=FALSE)
 				min.y <- iy+1
 			}
 		}
-		
+
 		# (ix,iy) is a bottom side element
 		else if (ix > 1 && ix < xdim && iy == 1 )
         {
@@ -942,8 +944,8 @@ compute.centroids <- function(map,heat,explicit=FALSE)
 				min.val <- heat[ix-1,iy]
 				min.x <- ix-1
 				min.y <- iy
-			}			
-		} 
+			}
+		}
 
 		# (ix,iy) is a right side element
 		else if (ix == xdim && iy > 1 && iy < ydim)
@@ -977,9 +979,9 @@ compute.centroids <- function(map,heat,explicit=FALSE)
 				min.val <- heat[ix-1,iy]
 				min.x <- ix-1
 				min.y <- iy
-			}			
-		} 
-		
+			}
+		}
+
 		# (ix,iy) is a top side element
 		else if (ix > 1 && ix < xdim && iy == ydim)
         {
@@ -1012,8 +1014,8 @@ compute.centroids <- function(map,heat,explicit=FALSE)
 				min.val <- heat[ix-1,iy]
 				min.x <- ix-1
 				min.y <- iy
-			}			
-		} 
+			}
+		}
 
 		#if successful
 		# move to the square with the smaller value, i.e., call compute.centroid on this new square
@@ -1059,7 +1061,7 @@ compute.centroids <- function(map,heat,explicit=FALSE)
 			compute.centroid(i,j)
 		}
 	}
-	
+
 	list(centroid.x=centroid.x,centroid.y=centroid.y)
 }
 
@@ -1067,7 +1069,7 @@ compute.centroids <- function(map,heat,explicit=FALSE)
 ### compute.umat -- compute the unified distance matrix
 # parameters:
 # - map is an object if type 'map'
-# - smoothing is either NULL, 0, or a positive floating point value controlling the 
+# - smoothing is either NULL, 0, or a positive floating point value controlling the
 #         smoothing of the umat representation
 # return value:
 # - a matrix with the same x-y dims as the original map containing the umat values
@@ -1076,7 +1078,7 @@ compute.umat <- function(map,smoothing=NULL)
 {
 	d <- dist(data.frame(map$neurons))
 	umat <- compute.heat(map,d,smoothing)
-	
+
 	umat
 }
 
@@ -1084,7 +1086,7 @@ compute.umat <- function(map,smoothing=NULL)
 # parameters:
 # - map is an object if type 'map'
 # - d is a distance matrix computed via the 'dist' function
-# - smoothing is either NULL, 0, or a positive floating point value controlling the 
+# - smoothing is either NULL, 0, or a positive floating point value controlling the
 #         smoothing of the umat representation
 # return value:
 # - a matrix with the same x-y dims as the original map containing the heat
@@ -1115,7 +1117,7 @@ compute.heat <- function(map,d.in,smoothing=NULL)
         {
 			for (iy in 2:(y-1))
             {
-				sum <- 
+				sum <-
 					   d[xl(ix,iy),xl(ix-1,iy-1)] +
 					   d[xl(ix,iy),xl(ix,iy-1)] +
 					   d[xl(ix,iy),xl(ix+1,iy-1)] +
@@ -1126,14 +1128,14 @@ compute.heat <- function(map,d.in,smoothing=NULL)
 					   d[xl(ix,iy),xl(ix-1,iy)]
 				heat[ix,iy] <- sum/8
 			}
-		
-		}	
-	
+
+		}
+
 		# iterate over bottom x axis
 		for (ix in 2:(x-1))
         {
 			iy <- 1
-			sum <- 
+			sum <-
 				   d[xl(ix,iy),xl(ix+1,iy)] +
 				   d[xl(ix,iy),xl(ix+1,iy+1)] +
 				   d[xl(ix,iy),xl(ix,iy+1)] +
@@ -1141,12 +1143,12 @@ compute.heat <- function(map,d.in,smoothing=NULL)
 				   d[xl(ix,iy),xl(ix-1,iy)]
 			heat[ix,iy] <- sum/5
 		}
-	
+
 		# iterate over top x axis
 		for (ix in 2:(x-1))
         {
 			iy <- y
-			sum <- 
+			sum <-
 				   d[xl(ix,iy),xl(ix-1,iy-1)] +
 				   d[xl(ix,iy),xl(ix,iy-1)] +
 				   d[xl(ix,iy),xl(ix+1,iy-1)] +
@@ -1154,25 +1156,25 @@ compute.heat <- function(map,d.in,smoothing=NULL)
 				   d[xl(ix,iy),xl(ix-1,iy)]
 			heat[ix,iy] <- sum/5
 		}
-	
+
 		# iterate over the left y-axis
 		for (iy in 2:(y-1))
         {
 			ix <- 1
-			sum <- 
+			sum <-
 				   d[xl(ix,iy),xl(ix,iy-1)] +
 				   d[xl(ix,iy),xl(ix+1,iy-1)] +
 				   d[xl(ix,iy),xl(ix+1,iy)] +
 				   d[xl(ix,iy),xl(ix+1,iy+1)] +
-				   d[xl(ix,iy),xl(ix,iy+1)] 
+				   d[xl(ix,iy),xl(ix,iy+1)]
 			heat[ix,iy] <- sum/5
 		}
-	
+
 		# iterate over the right y-axis
 		for (iy in 2:(y-1))
         {
 			ix <- x
-			sum <- 
+			sum <-
 				   d[xl(ix,iy),xl(ix-1,iy-1)] +
 				   d[xl(ix,iy),xl(ix,iy-1)] +
 				   d[xl(ix,iy),xl(ix,iy+1)] +
@@ -1181,23 +1183,23 @@ compute.heat <- function(map,d.in,smoothing=NULL)
 			heat[ix,iy] <- sum/5
 		}
 	} # end if
-	
+
 	# compute umat values for corners
 	if (x >= 2 && y >= 2)
     {
 		# bottom left corner
 		ix <- 1
 		iy <- 1
-		sum <- 
+		sum <-
 				d[xl(ix,iy),xl(ix+1,iy)] +
 				d[xl(ix,iy),xl(ix+1,iy+1)] +
-				d[xl(ix,iy),xl(ix,iy+1)] 
+				d[xl(ix,iy),xl(ix,iy+1)]
 		heat[ix,iy] <- sum/3
 
 		# bottom right corner
 		ix <- x
 		iy <- 1
-		sum <- 
+		sum <-
 			   d[xl(ix,iy),xl(ix,iy+1)] +
 			   d[xl(ix,iy),xl(ix-1,iy+1)] +
 			   d[xl(ix,iy),xl(ix-1,iy)]
@@ -1206,26 +1208,26 @@ compute.heat <- function(map,d.in,smoothing=NULL)
 		# top left corner
 		ix <- 1
 		iy <- y
-		sum <- 
+		sum <-
 				d[xl(ix,iy),xl(ix,iy-1)] +
 				d[xl(ix,iy),xl(ix+1,iy-1)] +
-				d[xl(ix,iy),xl(ix+1,iy)] 
+				d[xl(ix,iy),xl(ix+1,iy)]
 		heat[ix,iy] <- sum/3
 
 		# top right corner
 		ix <- x
 		iy <- y
-		sum <- 
+		sum <-
 				d[xl(ix,iy),xl(ix-1,iy-1)] +
 				d[xl(ix,iy),xl(ix,iy-1)] +
 				d[xl(ix,iy),xl(ix-1,iy)]
 		heat[ix,iy] <- sum/3
 	} # end if
-	
+
 	# smooth the heat map
 	xcoords <- c()
 	ycoords <- c()
-	for (i in 1:y) { 
+	for (i in 1:y) {
 		for (j in 1:x) {
 			ycoords <- c(ycoords, i)
 			xcoords <- c(xcoords, j)
@@ -1234,7 +1236,7 @@ compute.heat <- function(map,d.in,smoothing=NULL)
 	xycoords <- data.frame(xcoords,ycoords)
 
 	if (!is.null(smoothing)) {
-		if (smoothing == 0) 
+		if (smoothing == 0)
 			heat <- smooth.2d(as.vector(heat),x=as.matrix(xycoords),nrow=x,ncol=y,surface=FALSE)
 		else if (smoothing > 0)
 			heat <- smooth.2d(as.vector(heat),x=as.matrix(xycoords),nrow=x,ncol=y,surface=FALSE,theta=smoothing)
@@ -1255,12 +1257,12 @@ df.var.test <- function(df1,df2,conf = .95)
 {
 	if (length(df1) != length(df2))
         stop("df.var.test: cannot compare variances of data frames")
-    
+
 	# init our working arrays
 	var.ratio.v <- array(data=1,dim=length(df1))
 	var.confintlo.v <- array(data=1,dim=length(df1))
 	var.confinthi.v <- array(data=1,dim=length(df1))
-	
+
 	# compute the F-test on each feature in our populations
 	for (i in 1:length(df1))
     {
@@ -1270,7 +1272,7 @@ df.var.test <- function(df1,df2,conf = .95)
 		var.confintlo.v[i] <- t$conf.int[1]
 		var.confinthi.v[i] <- t$conf.int[2]
 	}
-    
+
 	# return a list with the ratios and conf intervals for each feature
 	list(ratio=var.ratio.v,conf.int.lo=var.confintlo.v,conf.int.hi=var.confinthi.v)
 }
@@ -1285,12 +1287,12 @@ df.mean.test <- function(df1,df2,conf = .95)
 {
 	if (ncol(df1) != ncol(df2))
         stop("df.mean.test: cannot compare means of data frames")
-    
+
 	# init our working arrays
 	mean.diff.v <- array(data=1,dim=ncol(df1))
 	mean.confintlo.v <- array(data=1,dim=ncol(df1))
 	mean.confinthi.v <- array(data=1,dim=ncol(df1))
-	
+
 	# compute the F-test on each feature in our populations
 	for (i in 1:ncol(df1)) {
 		t <- t.test(x=df1[[i]],y=df2[[i]],conf.level=conf)
@@ -1299,7 +1301,7 @@ df.mean.test <- function(df1,df2,conf = .95)
 		mean.confintlo.v[i] <- t$conf.int[1]
 		mean.confinthi.v[i] <- t$conf.int[2]
 	}
-    
+
 	# return a list with the mean differences and conf intervals for each feature
 	list(diff=mean.diff.v,conf.int.lo=mean.confintlo.v,conf.int.hi=mean.confinthi.v)
 }
@@ -1312,13 +1314,13 @@ vsom.r <- function(data,xdim,ydim,alpha,train)
     dc <- ncol(data)
     nr <- xdim*ydim
     nc <- dc # dim of data and neurons is the same
-    
+
     ### build and initialize the matrix holding the neurons
     cells <- nr * nc        # no. of neurons times number of data dimensions
     v <- runif(cells,-1,1)  # vector with small init values for all neurons
     # NOTE: each row represents a neuron, each column represents a dimension.
     neurons <- matrix(v,nrow=nr,ncol=nc)  # rearrange the vector as matrix
-    
+
     ### compute the initial neighborhood size and step
     #nsize <- ceiling(sqrt(xdim^2 + ydim^2))
     nsize <- max(xdim,ydim) + 1
@@ -1330,10 +1332,10 @@ vsom.r <- function(data,xdim,ydim,alpha,train)
     {
         x <- (rowix-1) %% xdim + 1
         y <- (rowix-1) %/% xdim + 1
-        
+
         c(x,y)
     }
-    
+
     # constants for the Gamma function
     m <- c(1:nr)                     # a vector with all neuron 1D addresses
     m2Ds <- matrix(coord2D(m),nr,2)  # x-y coordinate of ith neuron: m2Ds[i,] = c(xi,yi)
@@ -1348,7 +1350,7 @@ vsom.r <- function(data,xdim,ydim,alpha,train)
 
         as.vector(hood)
     }
-    
+
     ### training ###
     ### the epochs loop
     for (epoch in 1:train)
@@ -1360,11 +1362,11 @@ vsom.r <- function(data,xdim,ydim,alpha,train)
             step.counter <- 0
             nsize <- nsize - 1
         }
-        
+
         # create a sample training vector
         ix <- sample(1:dr,1)
         xk <- as.numeric(data[ix,])
-        
+
         ### competitive step
         xk.m <- rep(1,nr) %o% xk
         diff <- neurons - xk.m
@@ -1372,7 +1374,7 @@ vsom.r <- function(data,xdim,ydim,alpha,train)
         s <- squ %*% rep(1,nc)
         o <- order(s)
         c <- o[1]
-        
+
         ### update step
         gamma.m <- Gamma(c) %o% rep(1,nc)
         neurons <- neurons - diff * gamma.m
@@ -1389,13 +1391,13 @@ vsom.f <- function(data,xdim,ydim,alpha,train)
     dc <- ncol(data)
     nr <- xdim*ydim
     nc <- dc # dim of data and neurons is the same
-    
+
     ### build and initialize the matrix holding the neurons
     cells <- nr * nc        # no. of neurons times number of data dimensions
     v <- runif(cells,-1,1)  # vector with small init values for all neurons
     # NOTE: each row represents a neuron, each column represents a dimension.
     neurons <- matrix(v,nrow=nr,ncol=nc)  # rearrange the vector as matrix
-    
+
 
     result <- .Fortran("vsom",
                        as.single(neurons),
@@ -1411,7 +1413,7 @@ vsom.f <- function(data,xdim,ydim,alpha,train)
     # unpack the structure and list in result[1]
     v <- result[1]
     neurons <- matrix(v[[1]],nrow=nr,ncol=nc,byrow=FALSE)  # rearrange the result vector as matrix
-    
+
     neurons
 }
 
@@ -1422,16 +1424,16 @@ batchsom.private <- function(data,grid,min.radius,max.radius,train,init,radius.t
 
     initt <- pmatch(init, c("random","sample"))
     radius.type <- pmatch(radius.type,c("gaussian","bubble"))
-    
+
     data <- as.matrix(data)
     nd <- nrow(data)
     ng <- nrow(grid$pts)
-    
+
     xdim<- grid$xdim
     ydim<- grid$ydim
-    
+
     maxit <- ceiling(train/nd)
-    
+
     if(initt == 1){
         init <- matrix(NA, grid$xdim * grid$ydim, dim(data)[2])
         mi <- apply(data, 2, min)
@@ -1443,7 +1445,7 @@ batchsom.private <- function(data,grid,min.radius,max.radius,train,init,radius.t
     else if (initt == 2){
         init <- data[sample(1L:nd, ng, replace = FALSE), , drop = FALSE]
     }
-    
+
     nhbrdist <- as.matrix(dist(grid$pts))
     radii<- seq(max.radius,min.radius,len=maxit)
 
@@ -1457,11 +1459,6 @@ batchsom.private <- function(data,grid,min.radius,max.radius,train,init,radius.t
         ind <- rowSums(A) > 0
         init[ind, ] <- A[ind, ] %*% data / rowSums(A)[ind]
     }
-    
+
     list(classif=cl,codes=init,grid=grid)
 }
-
-
-
-
-
