@@ -1472,3 +1472,233 @@ batchsom.private <- function(data,grid,min.radius,max.radius,train,init,radius.t
 
     list(classif=cl,codes=init,grid=grid)
 }
+
+#Functions to Combine connected components that represent the same cluster
+##### TOP LEVEL FOR DISTANCE MATRIX ORIENTED CLUSTER COMBINE####
+
+compute.combined.clusters <- function(map,heat,explicit,range) {
+  # compute the connected components
+  #coords <- compute.internal.nodes(map, umat, explicit = FALSE)
+  centroids <- compute.centroids(map,heat,explicit)
+  #Get unique centroids
+  unique.centroids <- get.unique.centroids(map, centroids)
+  #Get distance from centroid to cluster elements for all centroids
+  within_cluster_dist <- distance.from.centroids(map, centroids, unique.centroids, heat)
+  #Get average pairwise distance between clusters
+  between_cluster_dist <- distance.between.clusters(map, centroids, unique.centroids, heat)
+  #Get a boolean matrix of whether two components should be combined
+  combine_cluster_bools <- combine.decision(within_cluster_dist, between_cluster_dist, range)
+  #Create the modified connected components grid
+  new_centroid <- new.centroid(combine_cluster_bools, heat, centroids, unique.centroids, map)
+
+  coords <- new_centroid
+
+  coords
+}
+
+### get.unique.centroids -- a function that computes a list of unique centroids from
+#                           a matrix of centroid locations.
+#
+# parameters:
+# - map is an object if type 'map'
+# - centroids - a matrix of the centroid locations in the map
+get.unique.centroids <- function(map, centroids){
+  # get the dimensions of the map
+  xdim <- map$xdim
+  ydim <- map$ydim
+  xlist <- c()
+  ylist <- c()
+  x.centroid <- centroids$centroid.x
+  y.centroid <- centroids$centroid.y
+
+  for(ix in 1:xdim){
+    for(iy in 1:ydim) {
+      cx <- x.centroid[ix, iy]
+      cy <- y.centroid[ix, iy]
+
+      # Check if the x or y of the current centroid is not in the list and if not
+      # append both the x and y coordinates to the respective lists
+      if(!(cx %in% xlist) || !(cy %in% ylist)){
+        xlist <- c(xlist, cx)
+        ylist <- c(ylist, cy)
+      }
+#      if(!(cy %in% ylist) || !(cx %in% xlist) ){
+#        xlist <- c(xlist, cx)
+#        ylist <- c(ylist, cy)
+#      }
+    }
+  }
+  list(position.x=xlist, position.y=ylist)
+}
+
+#Get average distance from centroid by cluster
+distance.from.centroids <- function(map, centroids, unique.centroids, heat){
+  xdim <- map$xdim
+  ydim <- map$ydim
+  xcoords <- unique.centroids$position.x
+  ycoords <- unique.centroids$position.y
+  within <- c()
+  for (i in 1:length(xcoords)){
+    cx <- xcoords[i]
+    cy <- ycoords[i]
+    distance <- cluster.spread(cx, cy, heat, centroids, map)
+    within <- c(within, distance)
+  }
+  within
+}
+
+### cluster.spread -- Function to calculate the average distance in
+#                     one cluster given one centroid.
+#
+# parameters:
+# - x
+# - y
+# - heat
+# - centroids
+# - map
+cluster.spread <- function(x, y, heat, centroids, map){
+  centroid.x <- x
+  centroid.y <- y
+  sum <- 0
+  elements <- 0
+  xdim <- map$xdim
+  ydim <- map$ydim
+  centroid_weight <- heat[centroid.x, centroid.y]
+  for(xi in 1:xdim){
+    for(yi in 1:ydim){
+      cx <- centroids$centroid.x[xi, yi]
+      cy <- centroids$centroid.y[xi, yi]
+      if(cx == centroid.x && cy == centroid.y){
+        cweight <- heat[xi,yi]
+        sum <- sum + abs(cweight - centroid_weight)
+        elements <- elements + 1
+      }
+    }
+  }
+
+  average <- sum / elements
+  average
+}
+
+#The average pairwise distance between clusters
+distance.between.clusters <- function(map, coords, centroids, umat){
+  cluster_elements <- list.clusters(map, coords, centroids, umat)
+  cluster_elements <- sapply(cluster_elements,'[',
+                             seq(max(sapply(cluster_elements, length))))
+
+  columns <- ncol(cluster_elements)
+  cluster_elements <- matrix(unlist(cluster_elements),
+                             ncol = ncol(cluster_elements), byrow = FALSE)
+  cluster_elements <- apply(combn(ncol(cluster_elements), 2), 2, function(x)
+    abs(cluster_elements[, x[1]] - cluster_elements[, x[2]]))
+  mean <- colMeans(cluster_elements, na.rm=TRUE)
+  index <- 1
+  mat <- matrix(data=NA, nrow=columns, ncol=columns)
+  for(xi in 1:(columns-1)){
+    for (yi in xi:(columns-1)){
+      mat[xi, yi + 1] <- mean[index]
+      mat[yi + 1, xi] <- mean[index]
+      index <- index + 1
+    }
+  }
+  mat
+}
+
+#Get the clusters as a list of lists
+list.clusters <- function(map, centroids, unique.centroids, umat){
+  cent_x <- unique.centroids$position.x
+  cent_y <- unique.centroids$position.y
+  componentx <- centroids$centroid.x
+  componenty <- centroids$centroid.y
+  cluster_list <- list()
+  for(i in 1:length(cent_x)){
+    cx <- cent_x[i]
+    cy <- cent_y[i]
+    cluster_list[i] <- list.from.centroid(map, cx, cy, centroids, umat)
+  }
+  cluster_list
+}
+
+#Get all cluster elements associated to one centroid
+list.from.centroid <- function(map,x, y,centroids,heat){
+  centroid.x <- x
+  centroid.y <- y
+  sum <- 0
+  xdim <- map$xdim
+  ydim <- map$ydim
+  centroid_weight <- heat[centroid.x, centroid.y]
+  cluster_list <- c()
+  for(xi in 1:xdim){
+    for(yi in 1:ydim){
+      cx <- centroids$centroid.x[xi, yi]
+      cy <- centroids$centroid.y[xi, yi]
+
+      if(cx == centroid.x && cy == centroid.y){
+        cweight <- heat[xi, yi]
+        cluster_list <- c(cluster_list, cweight)
+      }
+    }
+  }
+  list(cluster_list)
+}
+
+#Boolean matrix representing which clusters should be combined
+combine.decision <- function(within_cluster_dist, distance_between_clusters, combineRange){
+  inter_cluster <- distance_between_clusters
+  centroid_dist <- within_cluster_dist
+  dim <- dim(inter_cluster)[1]
+  to_combine <- matrix(data=FALSE, nrow=dim, ncol=dim)
+  for(xi in 1:dim){
+    for(yi in 1:dim){
+      cdist <- inter_cluster[xi,yi]
+      if(! is.na(cdist)){
+        rx <- centroid_dist[xi] * combineRange
+        ry <- centroid_dist[yi] * combineRange
+        if( cdist < (centroid_dist[xi] + rx) || cdist < (centroid_dist[yi] + ry)){
+          to_combine[xi, yi] <- TRUE
+        }
+      }
+    }
+  }
+  to_combine
+}
+
+#Changes every instance of a centroid to one that it should be combined with
+swap.centroids <- function(map, x1, y1, x2, y2, centroids){
+  xdim <- map$xdim
+  ydim <- map$ydim
+  compn_x <- centroids$centroid.x
+  compn_y <- centroids$centroid.y
+  for(xi in 1:xdim){
+    for(yi in 1:ydim){
+      if(compn_x[xi] == x1 && compn_y[yi] == y1){
+        compn_x[xi] <- x2
+        compn_y[yi] <- y2
+      }
+    }
+  }
+
+  list(centroid.x=compn_x, centroid.y=compn_y)
+}
+
+
+#Combine centroids based on matrix of booleans
+new.centroid <- function(bools, heat, centroids, unique.centroids, map){
+  xdim <- dim(bools)[1]
+  ydim <- dim(bools)[2]
+  centroids_x <- unique.centroids$position.x
+  centroids_y <- unique.centroids$position.y
+  components <- centroids
+  for(xi in 1:xdim){
+    for(yi in 1:ydim){
+      if(bools[xi,yi] == TRUE){
+        x1 <- centroids_x[xi]
+        y1 <- centroids_y[xi]
+        x2 <- centroids_x[yi]
+        y2 <- centroids_y[yi]
+        components <- swap.centroids(map, x1, y1, x2, y2, components)
+      }
+    }
+  }
+  components
+}
