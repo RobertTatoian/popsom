@@ -1490,9 +1490,7 @@ compute.combined.clusters <- function(map,heat,explicit,range) {
   #Create the modified connected components grid
   new_centroid <- new.centroid(combine_cluster_bools, heat, centroids, unique.centroids, map)
 
-  coords <- new_centroid
-
-  coords
+  new_centroid
 }
 
 ### get.unique.centroids -- a function that computes a list of unique centroids from
@@ -1640,8 +1638,8 @@ list.clusters <- function(map,centroids,unique.centroids,umat){
 #
 # parameters:
 # - map is an object of type 'map'
-# - x
-# - y
+# - x - the x position of a centroid
+# - y - the y position of a centroid
 # - centroids - a matrix of the centroid locations in the map
 # - umat - a unified distance matrix
 list.from.centroid <- function(map,x,y,centroids,umat){
@@ -1666,8 +1664,14 @@ list.from.centroid <- function(map,x,y,centroids,umat){
   list(cluster_list)
 }
 
-#Boolean matrix representing which clusters should be combined
-combine.decision <- function(within_cluster_dist, distance_between_clusters, combineRange){
+### combine.decision -- A function that produces a boolean matrix
+#                       representing which clusters should be combined.
+#
+# parameters:
+# - within_cluster_dist -
+# - distance_between_clusters -
+# - range - 
+combine.decision <- function(within_cluster_dist,distance_between_clusters,range){
   inter_cluster <- distance_between_clusters
   centroid_dist <- within_cluster_dist
   dim <- dim(inter_cluster)[1]
@@ -1675,10 +1679,10 @@ combine.decision <- function(within_cluster_dist, distance_between_clusters, com
   for(xi in 1:dim){
     for(yi in 1:dim){
       cdist <- inter_cluster[xi,yi]
-      if(! is.na(cdist)){
-        rx <- centroid_dist[xi] * combineRange
-        ry <- centroid_dist[yi] * combineRange
-        if( cdist < (centroid_dist[xi] + rx) || cdist < (centroid_dist[yi] + ry)){
+      if(!is.na(cdist)){
+        rx <- centroid_dist[xi] * range
+        ry <- centroid_dist[yi] * range
+        if(cdist < (centroid_dist[xi] + rx) || cdist < (centroid_dist[yi] + ry)){
           to_combine[xi, yi] <- TRUE
         }
       }
