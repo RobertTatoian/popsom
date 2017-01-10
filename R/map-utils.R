@@ -1478,7 +1478,6 @@ batchsom.private <- function(data,grid,min.radius,max.radius,train,init,radius.t
 
 compute.combined.clusters <- function(map,heat,explicit,range) {
   # compute the connected components
-  #coords <- compute.internal.nodes(map, umat, explicit = FALSE)
   centroids <- compute.centroids(map,heat,explicit)
   #Get unique centroids
   unique.centroids <- get.unique.centroids(map, centroids)
@@ -1533,7 +1532,7 @@ get.unique.centroids <- function(map, centroids){
 # - map is an object of type 'map'
 # - centroids - a matrix of the centroid locations in the map
 # - unique.centroids - a list of unique centroid locations
-# - heat is the unified distance matrix
+# - heat is a unified distance matrix
 distance.from.centroids <- function(map, centroids, unique.centroids, heat){
   xdim <- map$xdim
   ydim <- map$ydim
@@ -1553,25 +1552,25 @@ distance.from.centroids <- function(map, centroids, unique.centroids, heat){
 #                     one cluster given one centroid.
 #
 # parameters:
-# - x
-# - y
-# - heat
-# - centroids
-# - map
-cluster.spread <- function(x, y, heat, centroids, map){
+# - x - x position of a unique centroid
+# - y - y position of a unique centroid
+# - umat - a unified distance matrix
+# - centroids - a matrix of the centroid locations in the map
+# - map is an object of type 'map'
+cluster.spread <- function(x, y, umat, centroids, map){
   centroid.x <- x
   centroid.y <- y
   sum <- 0
   elements <- 0
   xdim <- map$xdim
   ydim <- map$ydim
-  centroid_weight <- heat[centroid.x, centroid.y]
+  centroid_weight <- umat[centroid.x, centroid.y]
   for(xi in 1:xdim){
     for(yi in 1:ydim){
       cx <- centroids$centroid.x[xi, yi]
       cy <- centroids$centroid.y[xi, yi]
       if(cx == centroid.x && cy == centroid.y){
-        cweight <- heat[xi,yi]
+        cweight <- umat[xi,yi]
         sum <- sum + abs(cweight - centroid_weight)
         elements <- elements + 1
       }
@@ -1582,20 +1581,28 @@ cluster.spread <- function(x, y, heat, centroids, map){
   average
 }
 
-#The average pairwise distance between clusters
-distance.between.clusters <- function(map, coords, centroids, umat){
-  cluster_elements <- list.clusters(map, coords, centroids, umat)
-  cluster_elements <- sapply(cluster_elements,'[',
-                             seq(max(sapply(cluster_elements, length))))
+### distance.between.clusters -- A function to compute the average pairwise
+#                                distance between clusters.
+#
+# parameters:
+# - map is an object of type 'map'
+# - centroids - a matrix of the centroid locations in the map
+# - unique.centroids - a list of unique centroid locations
+# - umat - a unified distance matrix
+distance.between.clusters <- function(map, centroids, unique.centroids, umat){
+  cluster_elements <- list.clusters(map, centroids, unique.centroids, umat)
+  cluster_elements <- sapply(cluster_elements,'[',seq(max(sapply(cluster_elements,length))))
 
   columns <- ncol(cluster_elements)
-  cluster_elements <- matrix(unlist(cluster_elements),
-                             ncol = ncol(cluster_elements), byrow = FALSE)
+
+  cluster_elements <- matrix(unlist(cluster_elements),ncol = ncol(cluster_elements),byrow = FALSE)
   cluster_elements <- apply(combn(ncol(cluster_elements), 2), 2, function(x)
     abs(cluster_elements[, x[1]] - cluster_elements[, x[2]]))
+
   mean <- colMeans(cluster_elements, na.rm=TRUE)
   index <- 1
   mat <- matrix(data=NA, nrow=columns, ncol=columns)
+
   for(xi in 1:(columns-1)){
     for (yi in xi:(columns-1)){
       mat[xi, yi + 1] <- mean[index]
@@ -1603,32 +1610,47 @@ distance.between.clusters <- function(map, coords, centroids, umat){
       index <- index + 1
     }
   }
+
   mat
 }
 
-#Get the clusters as a list of lists
-list.clusters <- function(map, centroids, unique.centroids, umat){
-  cent_x <- unique.centroids$position.x
-  cent_y <- unique.centroids$position.y
+### list.clusters -- A function to get the clusters as a list of lists.
+#
+# parameters:
+# - map is an object of type 'map'
+# - centroids - a matrix of the centroid locations in the map
+# - unique.centroids - a list of unique centroid locations
+# - umat - a unified distance matrix
+list.clusters <- function(map,centroids,unique.centroids,umat){
+  centroids.x.positions <- unique.centroids$position.x
+  centroids.y.positions <- unique.centroids$position.y
   componentx <- centroids$centroid.x
   componenty <- centroids$centroid.y
   cluster_list <- list()
   for(i in 1:length(cent_x)){
-    cx <- cent_x[i]
-    cy <- cent_y[i]
+    cx <- centroids.x.positions[i]
+    cy <- centroids.y.positions[i]
     cluster_list[i] <- list.from.centroid(map, cx, cy, centroids, umat)
   }
   cluster_list
 }
 
-#Get all cluster elements associated to one centroid
-list.from.centroid <- function(map,x, y,centroids,heat){
+### list.from.centroid -- A funtion to get all cluster elements
+#                         associated to one centroid.
+#
+# parameters:
+# - map is an object of type 'map'
+# - x
+# - y
+# - centroids - a matrix of the centroid locations in the map
+# - umat - a unified distance matrix
+list.from.centroid <- function(map,x,y,centroids,umat){
   centroid.x <- x
   centroid.y <- y
   sum <- 0
   xdim <- map$xdim
   ydim <- map$ydim
-  centroid_weight <- heat[centroid.x, centroid.y]
+  centroid_weight <- umat[centroid.x, centroid.y]
   cluster_list <- c()
   for(xi in 1:xdim){
     for(yi in 1:ydim){
@@ -1636,7 +1658,7 @@ list.from.centroid <- function(map,x, y,centroids,heat){
       cy <- centroids$centroid.y[xi, yi]
 
       if(cx == centroid.x && cy == centroid.y){
-        cweight <- heat[xi, yi]
+        cweight <- umat[xi, yi]
         cluster_list <- c(cluster_list, cweight)
       }
     }
