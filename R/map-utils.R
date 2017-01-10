@@ -1627,7 +1627,7 @@ list.clusters <- function(map,centroids,unique.centroids,umat){
   componentx <- centroids$centroid.x
   componenty <- centroids$centroid.y
   cluster_list <- list()
-  for(i in 1:length(cent_x)){
+  for(i in 1:length(centroids.x.positions)){
     cx <- centroids.x.positions[i]
     cy <- centroids.y.positions[i]
     cluster_list[i] <- list.from.centroid(map, cx, cy, centroids, umat)
