@@ -1500,7 +1500,7 @@ compute.combined.clusters <- function(map,heat,explicit,range) {
 #                           a matrix of centroid locations.
 #
 # parameters:
-# - map is an object if type 'map'
+# - map is an object of type 'map'
 # - centroids - a matrix of the centroid locations in the map
 get.unique.centroids <- function(map, centroids){
   # get the dimensions of the map
@@ -1522,25 +1522,27 @@ get.unique.centroids <- function(map, centroids){
         xlist <- c(xlist, cx)
         ylist <- c(ylist, cy)
       }
-#      if(!(cy %in% ylist) || !(cx %in% xlist) ){
-#        xlist <- c(xlist, cx)
-#        ylist <- c(ylist, cy)
-#      }
     }
   }
   list(position.x=xlist, position.y=ylist)
 }
 
-#Get average distance from centroid by cluster
+### distance.from.centroids -- A function to get the average distance from
+#                              centroid by cluster.
+# parameters:
+# - map is an object of type 'map'
+# - centroids - a matrix of the centroid locations in the map
+# - unique.centroids - a list of unique centroid locations
+# - heat is the unified distance matrix
 distance.from.centroids <- function(map, centroids, unique.centroids, heat){
   xdim <- map$xdim
   ydim <- map$ydim
-  xcoords <- unique.centroids$position.x
-  ycoords <- unique.centroids$position.y
+  centroids.x.positions <- unique.centroids$position.x
+  centroids.y.positions <- unique.centroids$position.y
   within <- c()
-  for (i in 1:length(xcoords)){
-    cx <- xcoords[i]
-    cy <- ycoords[i]
+  for (i in 1:length(centroids.x.positions)){
+    cx <- centroids.x.positions[i]
+    cy <- centroids.y.positions[i]
     distance <- cluster.spread(cx, cy, heat, centroids, map)
     within <- c(within, distance)
   }
