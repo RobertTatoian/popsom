@@ -448,43 +448,43 @@ map.neuron <- function(map,x,y)
 # - map is an object of type 'map'
 # - index is the name of a training data frame dimension or index
 
-map.marginal <- function(map,index)
+map.marginal <- function(map,marginal)
 {
   # ensure that map is a 'map' object
   if (class(map) != "map")
     stop("map.marginal: first argument is not a map object.")
-  
+
   # check if the second argument is of type character
-  if (typeof(index) == "character"){
-    
+  if (typeof(marginal) == "character"){
+
     column.names <- colnames(map$data)
 
-    # linear search to find a column name that matches the index
+    # linear search to find a column name that matches the marginal
     for(i in 1:length(column.names)){
-      
-      # if the index and column name match re-set index and break from the loop
-      if(index == column.names[i]){
-        index <- i
+
+      # if the marginal and column name match re-set marginal and break from the loop
+      if(marginal == column.names[i]){
+        marginal <- i
         break()
       }
-      
-      # if the loop has reached the end of the name vector and a match has not been 
+
+      # if the loop has reached the end of the name vector and a match has not been
       # found, stop execution.
       if (i == length(column.names)) {
         stop("map.marginal: second argument is not the name of a training data frame dimension or index.")
       }
-      
+
     }
   }
-  
+
   # create the plot with the numeric index
-  
-	train <- data.frame(points = map$data[[index]])
-	neurons <- data.frame(points = map$neurons[[index]])
+
+	train <- data.frame(points = map$data[[marginal]])
+	neurons <- data.frame(points = map$neurons[[marginal]])
 	train$what <- 'train'
 	neurons$what <- 'neurons'
 	hist <- rbind(train,neurons)
-	ggplot(hist, aes(points, fill = what)) + geom_density(alpha = 0.2) + xlab(names(map$data)[index])
+	ggplot(hist, aes(points, fill = what)) + geom_density(alpha = 0.2) + xlab(names(map$data)[marginal])
 }
 
 
