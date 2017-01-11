@@ -1488,7 +1488,7 @@ compute.combined.clusters <- function(map,heat,explicit,range) {
   #Get a boolean matrix of whether two components should be combined
   combine_cluster_bools <- combine.decision(within_cluster_dist, between_cluster_dist, range)
   #Create the modified connected components grid
-  new_centroid <- new.centroid(combine_cluster_bools, heat, centroids, unique.centroids, map)
+  new_centroid <- new.centroid(combine_cluster_bools, centroids, unique.centroids, map)
 
   new_centroid
 }
@@ -1668,9 +1668,9 @@ list.from.centroid <- function(map,x,y,centroids,umat){
 #                       representing which clusters should be combined.
 #
 # parameters:
-# - within_cluster_dist -
-# - distance_between_clusters -
-# - range - 
+# - within_cluster_dist - A list of the distances from centroid to cluster elements for all centroids
+# - distance_between_clusters - A list of the average pairwise distance between clusters
+# - range is the distance where the clusters are merged together.
 combine.decision <- function(within_cluster_dist,distance_between_clusters,range){
   inter_cluster <- distance_between_clusters
   centroid_dist <- within_cluster_dist
@@ -1691,7 +1691,15 @@ combine.decision <- function(within_cluster_dist,distance_between_clusters,range
   to_combine
 }
 
-#Changes every instance of a centroid to one that it should be combined with
+### swap.centroids -- A function that changes every instance of a centroid to
+#                     one that it should be combined with.
+# parameters:
+# - map is an object of type 'map'
+# - x1 -
+# - y1 -
+# - x2 -
+# - y2 -
+# - centroids - a matrix of the centroid locations in the map
 swap.centroids <- function(map, x1, y1, x2, y2, centroids){
   xdim <- map$xdim
   ydim <- map$ydim
@@ -1710,16 +1718,23 @@ swap.centroids <- function(map, x1, y1, x2, y2, centroids){
 }
 
 
-#Combine centroids based on matrix of booleans
-new.centroid <- function(bools, heat, centroids, unique.centroids, map){
-  xdim <- dim(bools)[1]
-  ydim <- dim(bools)[2]
+### new.centroid -- A function to combine centroids based on matrix of booleans.
+#
+# parameters:
+#
+# - bmat - a boolean matrix containing the centroids to merge
+# - centroids - a matrix of the centroid locations in the map
+# - unique.centroids - a list of unique centroid locations
+# - map is an object of type 'map'
+new.centroid <- function(bmat, centroids, unique.centroids, map){
+  bmat.rows <- dim(bmat)[1]
+  bmat.columns <- dim(bmat)[2]
   centroids_x <- unique.centroids$position.x
   centroids_y <- unique.centroids$position.y
   components <- centroids
-  for(xi in 1:xdim){
-    for(yi in 1:ydim){
-      if(bools[xi,yi] == TRUE){
+  for(xi in 1:bmat.rows){
+    for(yi in 1:bmat.columns){
+      if(bmat[xi,yi] == TRUE){
         x1 <- centroids_x[xi]
         y1 <- centroids_y[xi]
         x2 <- centroids_x[yi]
