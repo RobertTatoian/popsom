@@ -52,6 +52,7 @@ require(som)
 require(class)
 require(fields)
 require(graphics)
+require(ggplot2)
 
 ### map.build -- construct a SOM, returns an object of class 'map'
 # parameters:
@@ -441,6 +442,51 @@ map.neuron <- function(map,x,y)
     ix <- rowix(map,x,y)
     map$neurons[ix,]
 }
+
+### map.marginal - creates a plot of
+# parameters:
+# - map is an object of type 'map'
+# - index is the name of a training data frame dimension or index
+
+map.marginal <- function(map,index)
+{
+  # ensure that map is a 'map' object
+  if (class(map) != "map")
+    stop("map.marginal: first argument is not a map object.")
+  
+  # check if the second argument is of type character
+  if (typeof(index) == "character"){
+    
+    column.names <- colnames(map$data)
+
+    # linear search to find a column name that matches the index
+    for(i in 1:length(column.names)){
+      
+      # if the index and column name match re-set index and break from the loop
+      if(index == column.names[i]){
+        index <- i
+        break()
+      }
+      
+      # if the loop has reached the end of the name vector and a match has not been 
+      # found, stop execution.
+      if (i == length(column.names)) {
+        stop("map.marginal: second argument is not the name of a training data frame dimension or index.")
+      }
+      
+    }
+  }
+  
+  # create the plot with the numeric index
+  
+	train <- data.frame(points = map$data[[index]])
+	neurons <- data.frame(points = map$neurons[[index]])
+	train$what <- 'train'
+	neurons$what <- 'neurons'
+	hist <- rbind(train,neurons)
+	ggplot(hist, aes(points, fill = what)) + geom_density(alpha = 0.2) + xlab(names(map$data)[index])
+}
+
 
 ############################### local functions #################################
 
@@ -1525,6 +1571,8 @@ get.unique.centroids <- function(map, centroids){
       }
     }
   }
+
+  # return a list of unique centroid positions
   list(position.x=xlist, position.y=ylist)
 }
 
@@ -1541,12 +1589,19 @@ distance.from.centroids <- function(map, centroids, unique.centroids, heat){
   centroids.x.positions <- unique.centroids$position.x
   centroids.y.positions <- unique.centroids$position.y
   within <- c()
+
   for (i in 1:length(centroids.x.positions)){
     cx <- centroids.x.positions[i]
     cy <- centroids.y.positions[i]
+
+    # compute the average distance
     distance <- cluster.spread(cx, cy, heat, centroids, map)
+
+    # append the computed distance to the list of distances
     within <- c(within, distance)
   }
+
+  # return the list
   within
 }
 
@@ -1629,9 +1684,12 @@ list.clusters <- function(map,centroids,unique.centroids,umat){
   componentx <- centroids$centroid.x
   componenty <- centroids$centroid.y
   cluster_list <- list()
+
   for(i in 1:length(centroids.x.positions)){
     cx <- centroids.x.positions[i]
     cy <- centroids.y.positions[i]
+
+    # get the clusters associated with a unique centroid and store it in a list
     cluster_list[i] <- list.from.centroid(map, cx, cy, centroids, umat)
   }
   cluster_list
