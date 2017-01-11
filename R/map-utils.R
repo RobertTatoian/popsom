@@ -314,7 +314,7 @@ map.topo <- function(map,k=50,conf.int=.95,verb=FALSE,interval=TRUE)
 #                 to determine whether components are closer to their centroids or
 #                 centroids closer to each other.
 
-map.starburst <- function(map,explicit=FALSE,smoothing=2,merge.clusters=FALSE,merge.range)
+map.starburst <- function(map,explicit=FALSE,smoothing=2,merge.clusters=FALSE,merge.range=.25)
 {
 
 	if (class(map) != "map")
