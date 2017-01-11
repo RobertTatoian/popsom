@@ -310,9 +310,11 @@ map.topo <- function(map,k=50,conf.int=.95,verb=FALSE,interval=TRUE)
 # - explicit controls the shape of the connected components
 # - smoothing controls the smoothing level of the umat (NULL,0,>0)
 # - merge.clusters is a switch that controls if the starburst clusters are merged together
-# - merge.range controls the radius <write more>
+# - merge.range - a range that is used as a percentage of a certain distance in the code
+#                 to determine whether components are closer to their centroids or
+#                 centroids closer to each other.
 
-map.starburst <- function(map,explicit=FALSE,smoothing=2,merge.clusters=FALSE,merge.range=.5)
+map.starburst <- function(map,explicit=FALSE,smoothing=2,merge.clusters=FALSE,merge.range)
 {
 
 	if (class(map) != "map")
@@ -588,7 +590,9 @@ map.graphics.reset <- function(par.vector)
 # - explicit controls the shape of the connected components
 # - comp controls whether we plot the connected components on the heat map
 # - merge controls whether we merge the starbursts together.
-# - merge.range is the distance where the clusters are merged together.
+# - merge.range - a range that is used as a percentage of a certain distance in the code
+#                 to determine whether components are closer to their centroids or
+#                 centroids closer to each other.
 
 plot.heat <- function(map,heat,explicit=FALSE,comp=TRUE,merge=FALSE,merge.range)
 {
