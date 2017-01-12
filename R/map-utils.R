@@ -443,6 +443,7 @@ map.neuron <- function(map,x,y)
     map$neurons[ix,]
 }
 
+
 ### map.marginal - creates a plot of
 # parameters:
 # - map is an object of type 'map'
@@ -481,10 +482,10 @@ map.marginal <- function(map,marginal)
 
 	train <- data.frame(points = map$data[[marginal]])
 	neurons <- data.frame(points = map$neurons[[marginal]])
-	train$what <- 'train'
-	neurons$what <- 'neurons'
+	train$legend <- 'training data'
+	neurons$legend <- 'neurons'
 	hist <- rbind(train,neurons)
-	ggplot(hist, aes(points, fill = what)) + geom_density(alpha = 0.2) + xlab(names(map$data)[marginal])
+	ggplot(hist, aes(points, fill = legend)) + geom_density(alpha = 0.2) + xlab(names(map$data)[marginal])
 }
 
 
