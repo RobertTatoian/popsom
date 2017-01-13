@@ -5,21 +5,23 @@
 # This file constitues a set of routines which are useful in constructing
 # and evaluating self-organizing maps (SOMs).
 # The main utilities available in this file are:
-#	map.build - constructs a map
-#   map.convergence - reports the map convergence index
-#	map.embed - reports the embedding of the map in terms of modeling the
+#	map.build --------- constructs a map
+# map.convergence --- reports the map convergence index
+#	map.embed --------- reports the embedding of the map in terms of modeling the
 #                     underlying data distribution (100% if all feature distributions
 #                     are modeled correctly, 0% if none are)
-#   map.topo - reports the estimated topographic accuracy
-#	map.significance - graphically reports the significance of each feature with
-#                      respect to the self-organizing map model
-#	map.starburst - displays the starburst representation of the SOM model, the centers of
-#                   starbursts are the centers of clusters
-#	map.projection - print a table with the associations of labels with map elements
-#   map.neuron - returns the contents of a neuron at (x,y) on the map as a vector
-#
+# map.topo ---------- reports the estimated topographic accuracy
+#	map.significance -- graphically reports the significance of each feature with
+#                     respect to the self-organizing map model
+#	map.starburst ----- displays the starburst representation of the SOM model, the centers of
+#                     starbursts are the centers of clusters
+#	map.projection ---- print a table with the associations of labels with map elements
+# map.neuron -------- returns the contents of a neuron at (x,y) on the map as a vector
+# map.marginal ------ displays a density plot of a training dataframe dimension overlayed
+#                      with the neuron density for that same dimension or index.
 ### bug fixes
-# lhh - 1/6/17 - changed name to map.embed and map.topo to be consistent with the theory
+# rpt - 1/12/17 - added marginal visualization and incorperated cluster detection and merging functionality
+# lhh - 1/6/17  - changed name to map.embed and map.topo to be consistent with the theory
 #
 # lhh - 6/11/16 - added support for the vectorized version of SOM
 #
@@ -456,38 +458,26 @@ map.marginal <- function(map,marginal)
     stop("map.marginal: first argument is not a map object.")
 
   # check if the second argument is of type character
-  if (typeof(marginal) == "character"){
-
-    column.names <- colnames(map$data)
-
-    # linear search to find a column name that matches the marginal
-    for(i in 1:length(column.names)){
-
-      # if the marginal and column name match re-set marginal and break from the loop
-      if(marginal == column.names[i]){
-        marginal <- i
-        break()
-      }
-
-      # if the loop has reached the end of the name vector and a match has not been
-      # found, stop execution.
-      if (i == length(column.names)) {
-        stop("map.marginal: second argument is not the name of a training data frame dimension or index.")
-      }
-
-    }
+  if (!typeof(marginal) == "character"){
+  	train <- data.frame(points = map$data[[marginal]])
+  	neurons <- data.frame(points = map$neurons[[marginal]])
+  	train$legend <- 'training data'
+  	neurons$legend <- 'neurons'
+  	hist <- rbind(train,neurons)
+  	ggplot(hist, aes(points, fill = legend)) + geom_density(alpha = 0.2) + xlab(names(map$data)[marginal])
+  } else if (marginal %in% names(map$data)){
+  	train <- data.frame(points = map$data[names(map$data) == marginal])
+  	colnames(train) <- c("points")
+  	neurons <- data.frame(points = map$neurons[names(map$neurons) == marginal])
+  	colnames(neurons) <- c("points")
+  	train$legend <- 'training data'
+  	neurons$legend <- 'neurons'
+  	hist <- rbind(train,neurons)
+  	ggplot(hist, aes(points, fill = legend)) + geom_density(alpha = 0.2) + xlab(marginal)
+  } else {
+    stop("map.marginal: second argument is not the name of a training data frame dimension or index")
   }
-
-  # create the plot with the numeric index
-
-	train <- data.frame(points = map$data[[marginal]])
-	neurons <- data.frame(points = map$neurons[[marginal]])
-	train$legend <- 'training data'
-	neurons$legend <- 'neurons'
-	hist <- rbind(train,neurons)
-	ggplot(hist, aes(points, fill = legend)) + geom_density(alpha = 0.2) + xlab(names(map$data)[marginal])
 }
-
 
 ############################### local functions #################################
 
