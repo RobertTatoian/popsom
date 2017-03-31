@@ -10,6 +10,7 @@
 #	map.embed --------- reports the embedding of the map in terms of modeling the
 #                     underlying data distribution (100% if all feature distributions
 #                     are modeled correctly, 0% if none are)
+#	map.embed.ks ------ reports the embedding of the map using the Kolmogorov-Smirnov Test
 # map.topo ---------- reports the estimated topographic accuracy
 #	map.significance -- graphically reports the significance of each feature with
 #                     respect to the self-organizing map model
@@ -20,10 +21,11 @@
 # map.marginal ------ displays a density plot of a training dataframe dimension overlayed
 #                      with the neuron density for that same dimension or index.
 ### bug fixes
-# rpt - 1/12/17 - added marginal visualization and incorperated cluster detection and merging functionality
-# lhh - 1/6/17  - changed name to map.embed and map.topo to be consistent with the theory
+# rpt - 3/31/17 - added the Kolmogorov-Smirnov Test for map embeding.
+# rpt - 1/12/17 - added marginal visualization and incorperated cluster detection and merging functionality.
+# lhh - 1/6/17  - changed name to map.embed and map.topo to be consistent with the theory.
 #
-# lhh - 6/11/16 - added support for the vectorized version of SOM
+# lhh - 6/11/16 - added support for the vectorized version of SOM.
 #
 # lhh - 7/14/15 - added the topographic accuracy functionality.
 #
@@ -185,9 +187,14 @@ map.build <- function(data,labels=NULL,xdim=10,ydim=5,alpha=.3,train=1000,algori
 #
 # - return value is the convergence index
 
-map.convergence <- function(map,conf.int=.95,k=50,verb=FALSE)
+map.convergence <- function(map,conf.int=.95,k=50,verb=FALSE,ks = TRUE)
 {
-    embed <- map.embed(map,conf.int,verb=FALSE)
+    if(ks){
+      embed <- map.embed.ks(map,conf.int,verb=FALSE)
+    } else {
+      embed <- map.embed(map,conf.int,verb=FALSE)
+    }
+  
     topo <- map.topo(map,k,conf.int,verb=FALSE,interval=FALSE)
 
     if (verb)
@@ -206,7 +213,7 @@ map.convergence <- function(map,conf.int=.95,k=50,verb=FALSE)
 #
 # - return value is the cembedding of the map (variance captured by the map so far)
 
-# Hint: the embedding index is the variance of the trainig data captured by the map;
+# Hint: the embedding index is the variance of the training data captured by the map;
 #       maps with convergence of less than 90% are typically not trustworthy.  Of course,
 #       the precise cut-off depends on the noise level in your training data.
 
@@ -227,21 +234,21 @@ map.embed <- function(map,conf.int=.95,verb=FALSE)
 
 	 # do the t-test on a pair of datasets: code vectors/training data
 	 ml <- df.mean.test(map.df,data.df,conf=conf.int)
-
+	 
 	 # compute the variance captured by the map -- but only if the means have converged as well.
 	 nfeatures <- ncol(map.df)
 	 prob.v <- map.significance(map,graphics=FALSE)
 	 var.sum <- 0
 	 for (i in 1:nfeatures)
      {
-            #cat("Feature",i,"variance:\t",vl$ratio[i],"\t(",vl$conf.int.lo[i],"-",vl$conf.int.hi[i],")\n")
-	    #cat("Feature",i,"mean:\t",ml$diff[i],"\t(",ml$conf.int.lo[i],"-",ml$conf.int.hi[i],")\n")
-            if (vl$conf.int.lo[i] <= 1.0 && vl$conf.int.hi[i] >= 1.0 &&
-	        ml$conf.int.lo[i] <= 0.0 && ml$conf.int.hi[i] >= 0.0)
-               var.sum <- var.sum + prob.v[i]
-            else
-               # not converged - zero out the probability
-               prob.v[i] <- 0
+        #cat("Feature",i,"variance:\t",vl$ratio[i],"\t(",vl$conf.int.lo[i],"-",vl$conf.int.hi[i],")\n")
+	      #cat("Feature",i,"mean:\t",ml$diff[i],"\t(",ml$conf.int.lo[i],"-",ml$conf.int.hi[i],")\n")
+        if (vl$conf.int.lo[i] <= 1.0 && vl$conf.int.hi[i] >= 1.0 &&  ml$conf.int.lo[i] <= 0.0 && ml$conf.int.hi[i] >= 0.0) {
+          var.sum <- var.sum + prob.v[i]
+        } else {
+          # not converged - zero out the probability
+          prob.v[i] <- 0
+        }
 	}
 
 	# return the variance captured by converged features
@@ -249,6 +256,52 @@ map.embed <- function(map,conf.int=.95,verb=FALSE)
         prob.v
 	else
         var.sum
+}
+
+map.embed.ks <- function(map,conf.int=.95,verb=FALSE) {
+  
+  if (class(map) != "map") {
+    stop("map.embed: first argument is not a map object.")
+  }
+  
+  # map.df is a dataframe that contains the neurons
+  map.df <- data.frame(map$neurons)
+  
+  # data.df is a dataframe that contain the training data
+  # note: map$data is what the 'som' package returns
+  data.df <- data.frame(map$data)
+  
+  nfeatures <- ncol(map.df)
+  
+  # use the Kolmogorov-Smirnov Test to test whether the neurons and training data appear
+  # to come from the same distribution
+  ks.vector <- NULL
+  for(i in 1:nfeatures){
+    # Note rpt - I needed to use suppress warnings to suppress the warning about ties.
+    ks.vector[[i]] <- suppressWarnings(ks.test(map.df[[i]], data.df[[i]]))
+  }
+
+  prob.v <- map.significance(map,graphics=FALSE)
+  var.sum <- 0
+  
+  # compute the variance captured by the map
+  for (i in 1:nfeatures)
+  {
+    # the second entry contains the p-value
+    if (ks.vector[[i]][[2]] > (1 - conf.int)) {
+      var.sum <- var.sum + prob.v[i]
+    } else {
+      # not converged - zero out the probability
+      prob.v[i] <- 0
+    }
+  }
+  
+  # return the variance captured by converged features
+  if (verb)
+    prob.v
+  else
+    var.sum
+  
 }
 
 ### map.topo - measure the topographic accuracy of the map using sampling
@@ -456,27 +509,39 @@ map.marginal <- function(map,marginal)
   # ensure that map is a 'map' object
   if (class(map) != "map")
     stop("map.marginal: first argument is not a map object.")
-
+  
   # check if the second argument is of type character
   if (!typeof(marginal) == "character"){
-  	train <- data.frame(points = map$data[[marginal]])
-  	neurons <- data.frame(points = map$neurons[[marginal]])
-  	train$legend <- 'training data'
-  	neurons$legend <- 'neurons'
-  	hist <- rbind(train,neurons)
-  	ggplot(hist, aes(points, fill = legend)) + geom_density(alpha = 0.2) + xlab(names(map$data)[marginal])
+    
+    train <- data.frame(points = map$data[[marginal]])
+    neurons <- data.frame(points = map$neurons[[marginal]])
+    
+    train$legend <- 'training data'
+    neurons$legend <- 'neurons'
+    
+    hist <- rbind(train,neurons)
+    ggplot(hist, aes(points, fill = legend)) + geom_density(alpha = 0.2) + xlab(names(map$data)[marginal])
+    
   } else if (marginal %in% names(map$data)){
-  	train <- data.frame(points = map$data[names(map$data) == marginal])
-  	colnames(train) <- c("points")
-  	neurons <- data.frame(points = map$neurons[names(map$neurons) == marginal])
-  	colnames(neurons) <- c("points")
-  	train$legend <- 'training data'
-  	neurons$legend <- 'neurons'
-  	hist <- rbind(train,neurons)
-  	ggplot(hist, aes(points, fill = legend)) + geom_density(alpha = 0.2) + xlab(marginal)
+    
+    train <- data.frame(points = map$data[names(map$data) == marginal])
+    colnames(train) <- c("points")
+    
+    neurons <- data.frame(points = map$neurons[names(map$neurons) == marginal])
+    colnames(neurons) <- c("points")
+    
+    train$legend <- 'training data'
+    neurons$legend <- 'neurons'
+    
+    hist <- rbind(train,neurons)
+    ggplot(hist, aes(points, fill = legend)) + geom_density(alpha = 0.2) + xlab(marginal)
+    
   } else {
+    
     stop("map.marginal: second argument is not the name of a training data frame dimension or index")
+    
   }
+  
 }
 
 ############################### local functions #################################
